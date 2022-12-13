@@ -27,3 +27,5 @@ npm install
 npm install cornerstone-core
 npm install cornerstone-web-image-loader
 npm install cornerstone-tools
+npm install hammerjs
+npm install cornerstone-math

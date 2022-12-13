@@ -11,6 +11,7 @@
                     <button id="lRotate" type="button" @click="buttonToolInteraction(5, this.element1)">Rotate Left</button>
                     <button id="rRotate" type="button" @click="buttonToolInteraction(6, this.element1)">Rotate Right</button>
                     <button id="resetElement1" type="button" @click="resetTools(this.element1)">Reset</button>
+                    <button @click="disableFreeHandRoi(this.element1)">Draw</button>
                 </div>
                 <div class="content" id="content1">
                     <div class="zoom-text" id="zoom-text-content1">zoom:0</div>
@@ -26,6 +27,7 @@
                     <button id="lRotate" type="button" @click="buttonToolInteraction(5, this.element2)">Rotate Left</button>
                     <button id="rRotate" type="button" @click="buttonToolInteraction(6, this.element2)">Rotate Right</button>
                     <button id="resetElement1" type="button" @click="resetTools(this.element2)">Reset</button>
+                    <button @click="disableFreeHandRoi(this.element2)">Draw</button>
                 </div>
                 <div class="content" id="content2">
                     <div class="zoom-text" id="zoom-text-content2">zoom:0</div>
@@ -37,18 +39,43 @@
 </template>
 
 <script>
-import * as cornerstone from 'cornerstone-core'
-import * as cornerstoneWebImageLoader from 'cornerstone-web-image-loader'
-import * as cornerstoneTools from 'cornerstone-tools'
+import cornerstone from 'cornerstone-core'
+import cornerstoneWebImageLoader from 'cornerstone-web-image-loader'
+import cornerstoneTools from 'cornerstone-tools'
+import cornerstoneMath from 'cornerstone-math';
+import Hammer from 'hammerjs';
 
 cornerstoneWebImageLoader.external.cornerstone = cornerstone;
 cornerstoneTools.external.cornerstone = cornerstone;
+cornerstoneTools.external.Hammer = Hammer;
+cornerstoneTools.external.cornerstoneMath = cornerstoneMath;
+cornerstoneTools.init({
+    mouseEnabled: true,
+    touchEnabled: true,
+    globalToolSyncEnabled: false,
+    showSVGCursors: false,
+});
 
 cornerstone.registerImageLoader('http', cornerstoneWebImageLoader.loadImage)
 cornerstone.registerImageLoader('https', cornerstoneWebImageLoader.loadImage)
 
-
-const imageId = "https://rawgit.com/cornerstonejs/cornerstoneWebImageLoader/master/examples/Renal_Cell_Carcinoma.jpg"
+const imageIds = [
+    'https://i.postimg.cc/VNQJz0tX/1-01-dcm.png',
+    'https://i.postimg.cc/CKGz5MCX/1-02-dcm.png',
+    'https://i.postimg.cc/B6JtKWM6/1-03-dcm.png',
+    'https://i.postimg.cc/1XttvGx1/1-04-dcm.png',
+    'https://i.postimg.cc/PxKJb6RM/1-05-dcm.png',
+    'https://i.postimg.cc/5tR852Q0/1-06-2-dcm.png',
+    'https://i.postimg.cc/vBxf0w5v/1-07-2-dcm.png',
+    'https://i.postimg.cc/d3MdXNBc/1-08-2-dcm.png',
+    'https://i.postimg.cc/prD8tQGh/1-09-2-dcm.png',
+    'https://i.postimg.cc/28Dh7Jy4/1-10-2-dcm.png',
+    'https://i.postimg.cc/Wpr0rjNN/1-11-2-dcm.png',
+    'https://i.postimg.cc/8zkvq6hc/1-12-2-dcm.png',
+    'https://i.postimg.cc/zGdh5Gjj/1-13-2-dcm.png',
+    'https://i.postimg.cc/J45J6qHS/1-14-2-dcm.png',
+    'https://i.postimg.cc/N05H0vCw/1-15-2-dcm.png',
+];
 
 export default {
     name: 'ImageViewer',
@@ -58,6 +85,7 @@ export default {
             element2: null,
             zoomScale: 0,
             selectedFile: null,
+            freehandRoi: false,
         }
     },
     methods: {
@@ -73,7 +101,7 @@ export default {
                     lastX = e.pageX;
                     lastY = e.pageY;
 
-                    if (mouseButton === 1) {
+                    if (mouseButton === 2) {
                         let viewport = cornerstone.getViewport(element);
                         viewport.translation.x += (deltaX / viewport.scale);
                         viewport.translation.y += (deltaY / viewport.scale);
@@ -93,7 +121,7 @@ export default {
                 document.addEventListener('mouseup', mouseUpHandler);
             });
 
-            const mouseWheelEvents = ['mousewheel', 'DOMMouseScroll'];
+            const mouseWheelEvents = ['leftClick', 'DOMLeftClick'];
             mouseWheelEvents.forEach(function(eventType) {
                 element.addEventListener(eventType, function (e) {
                     let viewport = cornerstone.getViewport(element);
@@ -131,8 +159,19 @@ export default {
             }
             cornerstone.setViewport(element, viewport);
         },
-        resetTools(element) {
-            cornerstone.reset(element);
+        disableFreeHandRoi(element) {
+            if (this.freehandRoi) {
+                cornerstoneTools.setToolDisabledForElement(element, 'FreehandRoi');
+                cornerstoneTools.setToolActiveForElement(element, 'Zoom', { mouseButtonMask: 1 })
+            }
+            else {
+                cornerstoneTools.setToolActiveForElement(element, 'FreehandRoi', { mouseButtonMask: 1 })
+                cornerstoneTools.setToolDisabledForElement(element, 'Zoom');
+            }
+            this.freehandRoi = !this.freehandRoi;
+        },
+        resetTools() {
+            cornerstoneTools.setToolActive('Zoom');
         },
         onFileSelected(event) {
             this.selectedFile = event.target.files[0];
@@ -155,13 +194,31 @@ export default {
                 document.getElementById('ww-wl-text-content2').textContent = "WW/WL:" + Math.round(e.detail.viewport.voi.windowWidth) + "/" + Math.round(e.detail.viewport.voi.windowCenter);
                 document.getElementById('zoom-text-content2').textContent = "Zoom:" + e.detail.viewport.scale.toFixed(2);
             });
-
-            cornerstone.loadImage(imageId).then((image) => { cornerstone.displayImage(element1, image) })
-            cornerstone.loadImage(imageId).then((image) => { cornerstone.displayImage(element2, image) })
+            
+            const stack = {
+                currentImageIdIndex: 0,
+                imageIds
+            }
+            cornerstone.loadImage(imageIds[0]).then((image) => {
+                cornerstone.displayImage(element1, image)
+                cornerstoneTools.addStackStateManager(element1, ['stack'])
+                cornerstoneTools.addToolState(element1, 'stack', stack)
+            })
+            cornerstone.loadImage(imageIds[0]).then((image) => {
+                cornerstone.displayImage(element2, image)
+                cornerstoneTools.addStackStateManager(element2, ['stack'])
+                cornerstoneTools.addToolState(element2, 'stack', stack)
+            })
             this.element1 = element1;
             this.element2 = element2;
 
             //===================== TOOLS =====================
+            cornerstoneTools.addTool(cornerstoneTools.ZoomTool);
+            cornerstoneTools.setToolActive('Zoom', { mouseButtonMask: 1 })
+            cornerstoneTools.addTool(cornerstoneTools.StackScrollMouseWheelTool)
+            cornerstoneTools.setToolActive('StackScrollMouseWheel', { })
+            cornerstoneTools.addTool(cornerstoneTools.FreehandRoiTool)
+            cornerstoneTools.setToolDisabled('FreehandRoi');
             this.element1.oncontextmenu = (e) => e.preventDefault();
             this.element2.oncontextmenu = (e) => e.preventDefault();
             this.addMouseEvent(this.element1);
@@ -170,6 +227,7 @@ export default {
     },
     async mounted() {
         await this.load();
+        console.log(this.element1);
     }
 }
 </script>
