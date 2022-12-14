@@ -121,19 +121,7 @@ export default {
                 document.addEventListener('mouseup', mouseUpHandler);
             });
 
-            const mouseWheelEvents = ['leftClick', 'DOMLeftClick'];
-            mouseWheelEvents.forEach(function(eventType) {
-                element.addEventListener(eventType, function (e) {
-                    let viewport = cornerstone.getViewport(element);
-                    if (e.wheelDelta < 0 || e.detail > 0) {
-                        viewport.scale -= 0.25;
-                    } else {
-                        viewport.scale += 0.25;
-                    }
-                    cornerstone.setViewport(element, viewport);
-                    return false;
-                });
-            });
+            
         },
         buttonToolInteraction (tool, element) {
             const viewport = cornerstone.getViewport(element);
@@ -170,8 +158,8 @@ export default {
             }
             this.freehandRoi = !this.freehandRoi;
         },
-        resetTools() {
-            cornerstoneTools.setToolActive('Zoom');
+        resetTools(element) {
+            cornerstone.reset(element);
         },
         onFileSelected(event) {
             this.selectedFile = event.target.files[0];
